@@ -1,0 +1,50 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "LGPL-3.0-or-later"
+
+issueTrackerURL = "https://github.com/Dloi/bulk-terminal/issues"
+displayURL = "https://github.com/Dloi/bulk-terminal"
+
+[[mods]]
+modId = "bulkterminal"
+version = "${version}"
+displayName = "Bulk Terminal"
+authors = "Dloi"
+credits = "基于 Applied Energistics 2 与 MEGA Cells"
+description = '''
+大宗存储终端：面向 MEGA 大宗存储元件的线缆终端部件。
+
+- 只读写网络中的大宗盘（Bulk Cell）
+- 首次存入某物品时，自动为一块空闲大宗盘打上该物品的标记
+- 已被大宗盘接管的物品，允许连同普通磁盘的存量一并取出
+'''
+
+#########################################################
+# 依赖
+#########################################################
+
+[[dependencies.bulkterminal]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,)"
+ordering = "NONE"
+
+[[dependencies.bulkterminal]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.0,)"
+ordering = "NONE"
+
+# AE2 与本模组：必须存在，且在本模组之后加载（本模组依赖其 api）
+[[dependencies.bulkterminal]]
+modId = "ae2"
+type = "required"
+versionRange = "[19.2.15,)"
+ordering = "NONE"
+
+# MEGA Cells：大宗存储元件（Bulk Cell）的来源，缺了本模组没有意义
+[[dependencies.bulkterminal]]
+modId = "megacells"
+type = "required"
+versionRange = "[4.11.0,)"
+ordering = "AFTER"

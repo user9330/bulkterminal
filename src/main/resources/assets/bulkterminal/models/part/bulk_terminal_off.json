@@ -1,0 +1,38 @@
+{
+  "textures": {
+    "lightsBright": "bulkterminal:part/bulk_terminal_bright",
+    "lightsMedium": "bulkterminal:part/bulk_terminal_medium",
+    "lightsDark": "bulkterminal:part/bulk_terminal_dark",
+    "particle": "#lightsMedium"
+  },
+  "render_type": "minecraft:cutout",
+  "elements": [
+    {
+      "from": [2, 2, 0],
+      "to": [14, 14, 2],
+      "faces": {
+        "north": {
+          "texture": "#lightsBright"
+        }
+      }
+    },
+    {
+      "from": [2, 2, 0],
+      "to": [14, 14, 2],
+      "faces": {
+        "north": {
+          "texture": "#lightsMedium"
+        }
+      }
+    },
+    {
+      "from": [2, 2, 0],
+      "to": [14, 14, 2],
+      "faces": {
+        "north": {
+          "texture": "#lightsDark"
+        }
+      }
+    }
+  ]
+}

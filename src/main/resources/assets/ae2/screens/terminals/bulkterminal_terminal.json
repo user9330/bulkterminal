@@ -1,0 +1,8 @@
+{
+  "$schema": "../schema.json",
+  "includes": ["terminal.json"],
+  "helpTopic": "bulkterminal:bulk_terminal.md",
+  "terminalStyle": {
+    "supportsAutoCrafting": false
+  }
+}

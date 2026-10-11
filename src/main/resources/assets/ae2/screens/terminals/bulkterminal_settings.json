@@ -1,0 +1,66 @@
+{
+  "$schema": "../schema.json",
+  "includes": ["terminal_settings.json"],
+  "generatedBackground": {
+    "width": 200,
+    "height": 152
+  },
+  "text": {
+    "dialog_title": {
+      "position": {
+        "left": 8,
+        "top": 7
+      },
+      "text": {
+        "translate": "gui.ae2.TerminalSettingsTitle"
+      }
+    },
+    "search_settings_title": {
+      "position": {
+        "left": 8,
+        "top": 44
+      },
+      "text": {
+        "translate": "gui.ae2.SearchSettingsTitle"
+      }
+    }
+  },
+  "widgets": {
+    "back": {
+      "left": 176,
+      "top": -5,
+      "width": 20,
+      "height": 20
+    },
+    "useInternalSearchRadio": {
+      "left": 10,
+      "top": 58,
+      "width": 75
+    },
+    "useExternalSearchRadio": {
+      "left": 95,
+      "top": 58,
+      "width": 75
+    },
+    "rememberCheckbox": {
+      "left": 10,
+      "top": 94,
+      "width": 150
+    },
+    "autoFocusCheckbox": {
+      "left": 10,
+      "top": 110,
+      "width": 150
+    },
+    "syncWithExternalCheckbox": {
+      "left": 10,
+      "top": 126,
+      "width": 150
+    },
+    "clearExternalCheckbox": {
+      "left": 10,
+      "top": 94,
+      "width": 150
+    }
+  }
+}

@@ -1,0 +1,17 @@
+# 构建产物 / 本地缓存（留在磁盘，不进仓库）
+build/
+.gradle/
+run/
+runs/
+out/
+bin/
+*.log
+
+# jar 不进仓库（发布走 GitHub Releases），但保留 wrapper 本体
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml

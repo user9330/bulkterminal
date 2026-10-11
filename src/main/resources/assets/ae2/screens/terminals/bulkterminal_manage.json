@@ -1,0 +1,51 @@
+{
+  "$schema": "../schema.json",
+  "includes": ["../common/common.json"],
+  "generatedBackground": {
+    "width": 230,
+    "height": 232
+  },
+  "text": {
+    "dialog_title": {
+      "position": {
+        "left": 8,
+        "top": 7
+      },
+      "text": {
+        "translate": "gui.bulkterminal.manage_title"
+      }
+    }
+  },
+  "widgets": {
+    "back": {
+      "left": 214,
+      "top": -5,
+      "width": 20,
+      "height": 20
+    },
+    "search": {
+      "$comment": "AE2 原生 AETextField 搜索框：WidgetContainer 按本条目 move/resize。高度必须 12（原生边框贴图高度），宽度必须 ≤128（中段贴图最宽 126，超宽会与右端帽脱节）",
+      "left": 8,
+      "top": 64,
+      "width": 126,
+      "height": 12
+    },
+    "threshold": {
+      "$comment": "AE2 原生 AETextField 保留阈值输入框（addTextField 原生注册）；高度必须 12",
+      "left": 148,
+      "top": 22,
+      "width": 52,
+      "height": 12
+    },
+    "btForeground": {
+      "$comment": "BTScreenForeground 前景层挂载点：命名控件必须在样式里有条目（否则 Screen is missing required widget），位置数值无意义（自绘走相对坐标）",
+      "left": 0,
+      "top": 0
+    },
+    "scrollbar": {
+      "$comment": "AE2 Scrollbar：装卡按钮右侧的行区滚动条，高度由代码按行区设定",
+      "left": 214,
+      "top": 88
+    }
+  }
+}
