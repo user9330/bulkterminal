@@ -35,12 +35,14 @@ A MEGA Cells addon: provides the "Bulk Terminal", designed to improve the bulk-s
 
 | Component | Version |
 | --- | --- |
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.248 |
-| AE2 | 19.2.15 |
-| MEGA Cells | 4.11.0 |
-| ModDevGradle | 2.0.107 |
-| Java | 21 |
+| Minecraft | 26.1.2 |
+| NeoForge | 26.1.2.81 |
+| AE2 | 26.1.10-beta |
+| MEGA Cells | 4.12.0 |
+| ModDevGradle | 2.0.143 |
+| Java | 25 |
+
+> Note: The MEGA Cells 26.1 port is not yet published to Modrinth/CurseForge. Build it yourself from its GitHub `26.1` branch and place the compiled jar into `libs/` (third-party artifact, not committed to this repo; build commands in the dependency block of `build.gradle.kts`).
 
 ## Project Layout
 

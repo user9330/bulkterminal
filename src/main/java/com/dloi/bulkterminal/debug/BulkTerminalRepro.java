@@ -116,10 +116,10 @@ public final class BulkTerminalRepro {
 
     private static void build(MinecraftServer server) {
         var level = server.overworld();
-        var base = level.getSharedSpawnPos();
-        var chunk = new ChunkPos(base);
-        level.setChunkForced(chunk.x, chunk.z, true);
-        int y = level.getMinBuildHeight() + 2;
+        var base = level.getRespawnData().pos();
+        var chunk = ChunkPos.containing(base);
+        level.setChunkForced(chunk.x(), chunk.z(), true);
+        int y = level.getMinY() + 2;
 
         cablePos = new BlockPos(base.getX() + 2, y, base.getZ() + 2);
         cablePos2 = cablePos.east();
@@ -258,16 +258,16 @@ public final class BulkTerminalRepro {
 
         BulkTerminal.LOGGER.info("{} ---- 步骤5：卸载并重载区块（模拟玩家离开后的区块回收），然后再次存入圆石 x10", TAG);
         var level = server.overworld();
-        var chunk = new ChunkPos(cablePos);
-        level.setChunkForced(chunk.x, chunk.z, false);
+        var chunk = ChunkPos.containing(cablePos);
+        level.setChunkForced(chunk.x(), chunk.z(), false);
         BulkTerminal.LOGGER.info("{} 区块已取消强制加载，等待保存与卸载……", TAG);
         reloadWait = true;
     }
 
     private static void afterReload(MinecraftServer server) {
         var level = server.overworld();
-        var chunk = new ChunkPos(cablePos);
-        level.setChunkForced(chunk.x, chunk.z, true);
+        var chunk = ChunkPos.containing(cablePos);
+        level.setChunkForced(chunk.x(), chunk.z(), true);
         BulkTerminal.LOGGER.info("{} 区块已重新加载，等待 BE 重建……", TAG);
         reloadPending = 100;
     }

@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "bulkterminal:item/bulk_terminal"
+  }
+}

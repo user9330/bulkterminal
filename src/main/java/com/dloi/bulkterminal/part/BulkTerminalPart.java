@@ -5,21 +5,17 @@ import java.util.List;
 
 import org.jetbrains.annotations.Nullable;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNodeListener;
 import appeng.api.parts.IPartItem;
-import appeng.api.parts.IPartModel;
 import appeng.api.storage.MEStorage;
-import appeng.items.parts.PartModels;
-import appeng.parts.PartModel;
 import appeng.parts.reporting.AbstractTerminalPart;
 
-import com.dloi.bulkterminal.BulkTerminal;
 import com.dloi.bulkterminal.definition.BTMenus;
 import com.dloi.bulkterminal.storage.BulkOnlyStorage;
 
@@ -28,18 +24,13 @@ import com.dloi.bulkterminal.storage.BulkOnlyStorage;
  *
  * <p>关键点只有一处：覆写 {@link AbstractTerminalPart#getInventory()} 返回自定义的存储视图，
  * 之后显示 / 存入 / 提取三条路径全部走它。
+ *
+ * <p>26.1.2 起 AE2 部件静态模型改为数据驱动（assets/&lt;ns&gt;/ae2/parts/&lt;id&gt;.json），
+ * 旧 {@code @PartModels} / {@code getStaticModels()} 注解已移除。
  */
 public class BulkTerminalPart extends AbstractTerminalPart {
     private static final String TAG_AUTO_MARK = "autoMarkEnabled";
     private static final String TAG_TRANSFER_THRESHOLD = "transferThreshold";
-
-    @PartModels
-    private static final IPartModel MODEL_OFF = new PartModel(
-            MODEL_BASE, BulkTerminal.makeId("part/bulk_terminal_off"), MODEL_STATUS_OFF);
-
-    @PartModels
-    private static final IPartModel MODEL_ON = new PartModel(
-            MODEL_BASE, BulkTerminal.makeId("part/bulk_terminal_on"), MODEL_STATUS_ON);
 
     @Nullable
     private BulkOnlyStorage bulkInventory;
@@ -70,11 +61,6 @@ public class BulkTerminalPart extends AbstractTerminalPart {
         }
 
         return bulkInventory;
-    }
-
-    @Override
-    public IPartModel getStaticModels() {
-        return isPowered() && isActive() ? MODEL_ON : MODEL_OFF;
     }
 
     @Override
@@ -135,16 +121,16 @@ public class BulkTerminalPart extends AbstractTerminalPart {
     }
 
     @Override
-    public void writeToNBT(CompoundTag data, HolderLookup.Provider registries) {
-        super.writeToNBT(data, registries);
-        data.putBoolean(TAG_AUTO_MARK, autoMarkEnabled);
-        data.putLong(TAG_TRANSFER_THRESHOLD, transferThreshold);
+    public void writeToNBT(ValueOutput output) {
+        super.writeToNBT(output);
+        output.putBoolean(TAG_AUTO_MARK, autoMarkEnabled);
+        output.putLong(TAG_TRANSFER_THRESHOLD, transferThreshold);
     }
 
     @Override
-    public void readFromNBT(CompoundTag data, HolderLookup.Provider registries) {
-        super.readFromNBT(data, registries);
-        this.autoMarkEnabled = data.contains(TAG_AUTO_MARK) ? data.getBoolean(TAG_AUTO_MARK) : true;
-        this.transferThreshold = data.contains(TAG_TRANSFER_THRESHOLD) ? data.getLong(TAG_TRANSFER_THRESHOLD) : 0;
+    public void readFromNBT(ValueInput input) {
+        super.readFromNBT(input);
+        this.autoMarkEnabled = input.getBooleanOr(TAG_AUTO_MARK, true);
+        this.transferThreshold = input.getLongOr(TAG_TRANSFER_THRESHOLD, 0);
     }
 }

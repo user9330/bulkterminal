@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[4,)"
+loaderVersion = "[11,)"
 license = "LGPL-3.0-or-later"
 
 issueTrackerURL = "https://github.com/Dloi/bulk-terminal/issues"
@@ -26,25 +26,25 @@ description = '''
 [[dependencies.bulkterminal]]
 modId = "minecraft"
 type = "required"
-versionRange = "[1.21.1,)"
+versionRange = "[26.1.2,)"
 ordering = "NONE"
 
 [[dependencies.bulkterminal]]
 modId = "neoforge"
 type = "required"
-versionRange = "[21.1.0,)"
+versionRange = "[26.1.2.81,)"
 ordering = "NONE"
 
 # AE2 与本模组：必须存在，且在本模组之后加载（本模组依赖其 api）
 [[dependencies.bulkterminal]]
 modId = "ae2"
 type = "required"
-versionRange = "[19.2.15,)"
+versionRange = "[26.1.10-beta,)"
 ordering = "NONE"
 
 # MEGA Cells：大宗存储元件（Bulk Cell）的来源，缺了本模组没有意义
 [[dependencies.bulkterminal]]
 modId = "megacells"
 type = "required"
-versionRange = "[4.11.0,)"
+versionRange = "[4.12.0,)"
 ordering = "AFTER"

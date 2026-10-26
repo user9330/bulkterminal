@@ -3,10 +3,10 @@ package com.dloi.bulkterminal.client;
 import java.util.Collections;
 import java.util.List;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.Rect2i;
 
 import appeng.client.gui.style.Blitter;
@@ -23,11 +23,11 @@ abstract class BTPictureButton extends Button implements ITooltip {
         super(0, 0, 16, 16, message, onPress, Button.DEFAULT_NARRATION);
     }
 
-    protected static ResourceLocation texture(String name) {
-        return ResourceLocation.fromNamespaceAndPath(BulkTerminal.MOD_ID, "textures/gui/" + name);
+    protected static Identifier texture(String name) {
+        return Identifier.fromNamespaceAndPath(BulkTerminal.MOD_ID, "textures/gui/" + name);
     }
 
-    protected static void blitTexture(GuiGraphics guiGraphics, ResourceLocation texture, int texWidth,
+    protected static void blitTexture(GuiGraphicsExtractor guiGraphics, Identifier texture, int texWidth,
             int texHeight, int x, int y) {
         Blitter.texture(texture, texWidth, texHeight).dest(x, y).blit(guiGraphics);
     }

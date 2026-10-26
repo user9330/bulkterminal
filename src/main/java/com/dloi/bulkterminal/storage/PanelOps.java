@@ -309,11 +309,11 @@ public final class PanelOps {
             List<String> info, List<String> warn) {
         if (player != null) {
             for (var line : info) {
-                player.displayClientMessage(Component.literal(line).withStyle(ChatFormatting.GREEN), false);
+                player.sendSystemMessage(Component.literal(line).withStyle(ChatFormatting.GREEN));
             }
 
             for (var line : warn) {
-                player.displayClientMessage(Component.literal(line).withStyle(ChatFormatting.YELLOW), false);
+                player.sendSystemMessage(Component.literal(line).withStyle(ChatFormatting.YELLOW));
             }
         }
 

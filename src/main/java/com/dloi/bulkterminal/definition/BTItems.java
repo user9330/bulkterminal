@@ -10,10 +10,8 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 import appeng.api.parts.IPart;
 import appeng.api.parts.IPartItem;
-import appeng.api.parts.PartModels;
 import appeng.core.definitions.ItemDefinition;
 import appeng.items.parts.PartItem;
-import appeng.items.parts.PartModelsHelper;
 
 import com.dloi.bulkterminal.BulkTerminal;
 import com.dloi.bulkterminal.part.BulkTerminalPart;
@@ -34,11 +32,11 @@ public final class BTItems {
     }
 
     /**
-     * 照抄 MEGA Cells 的部件注册范式：先把部件声明的模型登记给 AE2，再注册对应的 {@link PartItem}。
+     * 注册部件对应的 {@link PartItem}。26.1.2 起部件静态模型为数据驱动
+     * （assets/bulkterminal/ae2/parts/&lt;id&gt;.json），不再需要注册模型代码。
      */
     private static <T extends IPart> ItemDefinition<PartItem<T>> part(
             String englishName, String id, Class<T> partClass, Function<IPartItem<T>, T> factory) {
-        PartModels.registerModels(PartModelsHelper.createModels(partClass));
         return item(englishName, id, p -> new PartItem<>(p, partClass, factory));
     }
 

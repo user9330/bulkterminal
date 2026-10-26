@@ -6,7 +6,7 @@ import appeng.client.gui.AESubScreen;
 import appeng.client.gui.style.ScreenStyle;
 import appeng.client.gui.widgets.AECheckbox;
 import appeng.client.gui.widgets.TabButton;
-import appeng.client.gui.Icon;
+import appeng.util.Icon;
 import appeng.core.AEConfig;
 import appeng.core.localization.GuiText;
 import appeng.integration.abstraction.ItemListMod;

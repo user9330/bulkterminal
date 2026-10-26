@@ -1,6 +1,6 @@
 package com.dloi.bulkterminal;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 
@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import com.dloi.bulkterminal.definition.BTCreativeTab;
 import com.dloi.bulkterminal.definition.BTItems;
 import com.dloi.bulkterminal.definition.BTMenus;
+import com.dloi.bulkterminal.net.BTNetwork;
 
 /**
  * 大宗存储终端（Bulk Terminal）。
@@ -30,10 +31,12 @@ public class BulkTerminal {
         BTMenus.DR.register(modBus);
         BTCreativeTab.DR.register(modBus);
 
+        modBus.addListener(BTNetwork::onRegisterPayloads);
+
         LOGGER.info("Bulk Terminal 初始化完成");
     }
 
-    public static ResourceLocation makeId(String path) {
-        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    public static Identifier makeId(String path) {
+        return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
 }

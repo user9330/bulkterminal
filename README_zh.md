@@ -32,14 +32,16 @@ MEGA Cells 的附属模组 ：提供「大宗存储终端」，用于改善大�
 
 ## 版本矩阵
 
-| 项            | 版本       |
-| ------------ | -------- |
-| Minecraft    | 1.21.1   |
-| NeoForge     | 21.1.248 |
-| AE2          | 19.2.15  |
-| MEGA Cells   | 4.11.0   |
-| ModDevGradle | 2.0.107  |
-| Java         | 21       |
+| 项           | 版本         |
+| ------------ | ------------ |
+| Minecraft    | 26.1.2       |
+| NeoForge     | 26.1.2.81    |
+| AE2          | 26.1.10-beta |
+| MEGA Cells   | 4.12.0       |
+| ModDevGradle | 2.0.143      |
+| Java         | 25           |
+
+> 注：MEGA Cells 4.12.0 的 26.1 移植尚未发布到 Modrinth/CurseForge，需自行从其 GitHub `26.1` 分支构建，并把编译出的 jar 放入本仓库 `libs/`（他人项目产物，不入库；构建命令见 `build.gradle.kts` 依赖块注释）。
 
 ## 项目结构
 

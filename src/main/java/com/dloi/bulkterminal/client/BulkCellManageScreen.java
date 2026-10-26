@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -11,20 +12,24 @@ import guideme.PageAnchor;
 import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
+import appeng.api.stacks.AEItemKey;
+import appeng.api.stacks.AEKey;
 import appeng.client.gui.AESubScreen;
+import appeng.client.gui.me.search.RepoSearch;
 import appeng.client.gui.style.Blitter;
 import appeng.client.gui.widgets.AE2Button;
 import appeng.client.gui.widgets.AETextField;
 import appeng.client.gui.widgets.Scrollbar;
 import appeng.menu.SlotSemantics;
+import appeng.menu.me.common.GridInventoryEntry;
 
 import com.dloi.bulkterminal.menu.BulkTerminalMenu;
 import com.dloi.bulkterminal.net.PanelClientState;
@@ -49,7 +54,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
 
     // 对话框背景：本模组自己的 256×256 九宫格贴图（边框 4px，内部平铺），
     // 算法与 AE2 BackgroundGenerator 相同，贴图不再依赖 ae2 命名空间
-    private static final ResourceLocation DIALOG_BG = BTPictureButton.texture("manage_dialog_bg.png");
+    private static final Identifier DIALOG_BG = BTPictureButton.texture("manage_dialog_bg.png");
     private static final int BG_SIZE = 256;
     private static final int BG_BORDER = 4;
     private static final int BG_TILE = BG_SIZE - 2 * BG_BORDER;
@@ -64,7 +69,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
     private AETextField thresholdBox;
     private final List<AbstractWidget> rowWidgets = new ArrayList<>();
 
-    /** 搜索框 = AE2 原生 AETextField（与终端搜索框同源），命名控件，位置/尺寸由样式 JSON 维护 */
+    /** 搜索框 = ImeFreeTextField（AE2 原生 AETextField 子类，与终端搜索框同源且不接管中文输入法），命名控件，位置/尺寸由样式 JSON 维护 */
     private AETextField searchField;
     private String searchFilter = "";
     /** 搜索过滤后的可见行 → 数据行下标；空搜索时是全量映射 */
@@ -82,6 +87,26 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
     /** 行 id → 稳定盘号（1 起；行首「#N」与 #N 搜索都用它，会话内不变） */
     private Map<Integer, Integer> rowSeq = Map.of();
 
+    /**
+     * 搜索复用 AE2 的 RepoSearch 管线（与终端搜索框同一套语法与谓词）。
+     * JEC 拼音模组在类加载期改写 AE2 NameSearchPredicate / TooltipsSearchPredicate
+     * 方法体内的 {@code String.contains}——改写发生在 AE2 自己的类上、与调用方无关，
+     * 因此本界面无需进入 JEC 白名单即可获得拼音/声母/模糊音匹配；
+     * 未装 JEC 时这些谓词自动退化为普通子串匹配。
+     */
+    private final RepoSearch search = new RepoSearch();
+
+    /**
+     * AEKey → 复用的 {@link GridInventoryEntry} 实例（供 RepoSearch.matches 消费）。
+     * 铁律一：不同 AEKey 绝不能共用 serial——RepoSearch.matches 按 entry.getSerial()
+     * 缓存匹配结果，共用 serial 会把 A 物品的结果串给 B；同一 key 恒定复用同一
+     * entry 实例（即恒定同一 serial），缓存才始终有效。
+     */
+    private final Map<AEKey, GridInventoryEntry> entries = new HashMap<>();
+
+    /** 单调递增的 serial 分配器：每个新 AEKey 分得一个会话内唯一的 serial（铁律一的实现） */
+    private long nextSerial = 1;
+
     public BulkCellManageScreen(BulkTerminalScreen parent) {
         super(parent, STYLE);
 
@@ -91,13 +116,28 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
         // AE2 原生滚动条：BIG 样式 = 终端同款，经 WidgetContainer 原生注册路径
         scrollbar = widgets.addScrollBar("scrollbar", Scrollbar.BIG);
 
-        // 搜索框 = AE2 原生 AETextField，经 addTextField 与终端搜索框同一路径注册；
-        // 位置/尺寸由样式 JSON "search" 条目给出（原生边框贴图高 12px，条目高度必须是 12，
-        // 拉高会让原版黑框从 AE2 边框下缘露出来，看起来像两个框叠在一起）
-        searchField = widgets.addTextField("search");
+        // 搜索框 = ImeFreeTextField（AETextField 子类，不接管中文输入法：关闭游戏内组合条、
+        // 候选窗交还系统输入法锚定，见该类 javadoc）。复刻 WidgetContainer.addTextField 的
+        // 构造与 setter 序列（0,0,0,0 占位 → setBordered(false) → setMaxLength(25) →
+        // setTextColor(0xFFFFFFFF) → setVisible(true)）后经 widgets.add 注册——与 addTextField
+        // 走同一条 add(id, widget) 样式定位路径；位置/尺寸由样式 JSON "search" 条目给出
+        // （原生边框贴图高 12px，条目高度必须是 12，拉高会让原版黑框从 AE2 边框下缘露出来，
+        // 看起来像两个框叠在一起）
+        searchField = new ImeFreeTextField(style, Minecraft.getInstance().font, 0, 0, 0, 0);
+        searchField.setBordered(false);
+        searchField.setMaxLength(25);
+        searchField.setTextColor(0xFFFFFFFF);
+        searchField.setVisible(true);
+        widgets.add("search", searchField);
 
-        // 阈值输入同走 addTextField 原生路径（setBordered(false) + 白字 + AE2 选区色）
-        thresholdBox = widgets.addTextField("threshold");
+        // 阈值输入同走上述等价注册路径（setBordered(false) + 白字 + AE2 选区色），
+        // 同样不接管中文输入法
+        thresholdBox = new ImeFreeTextField(style, Minecraft.getInstance().font, 0, 0, 0, 0);
+        thresholdBox.setBordered(false);
+        thresholdBox.setMaxLength(25);
+        thresholdBox.setTextColor(0xFFFFFFFF);
+        thresholdBox.setVisible(true);
+        widgets.add("threshold", thresholdBox);
 
         // 命名控件只能注册一次：AEBaseScreen.init 每次只会重新 populate，
         // WidgetContainer 的 id 表不随 rebuildWidgets 清空，重复注册会崩 Duplicate id
@@ -150,7 +190,27 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
 
             reindex();
             refreshView();
+
+            // 焦点态必须在 rebuild 前读取（rebuild 会清 flag）：只恢复「原本就在输入」的那个框。
+            // 若无条件恢复，点击按钮等操作触发的快照会把焦点从按钮抢到搜索框，
+            // 搜索框凭空获得光标（闪烁）并激活输入法——真机上表现为文字闪烁。
+            var searchHadFocus = searchField.isFocused();
+            var thresholdHadFocus = thresholdBox.isFocused();
+
             rebuildWidgets();
+
+            // AE2 populateScreen 每次 init 都强制 setFocused(false)，快照驱动的 rebuildWidgets
+            // 会把正在输入的框焦点连同 IME 一并掐断（输入中文组合时触发快照更新，组合串直接断掉）。
+            // setInitialFocus 同时恢复 Screen 级焦点（键盘事件派发可达）与控件焦点
+            // （EditBox 聚焦会重开 IME 并重提交进行中的组合串）；
+            // 仅当该框 rebuild 前就持有焦点时才恢复，焦点在别处（如刚点过的按钮）时不抢。
+            if (searchHadFocus && !searchField.isFocused()) {
+                this.setInitialFocus(searchField);
+            }
+
+            if (thresholdHadFocus && !thresholdBox.isFocused()) {
+                this.setInitialFocus(thresholdBox);
+            }
         }
 
         // 滚动条被拖拽/滚轮后（captureMouseWheel=true，全屏滚轮都归它），同步重建行按钮
@@ -318,12 +378,21 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
     /**
      * 搜索命中规则：压缩链上任意一档、标记/存量物品的名字或注册 ID，
      * 另支持「#盘号」按稳定盘号直查（如 #3 → 盘号 3 的盘；盘号会话内不变）。
+     *
+     * <p>名字匹配复用 AE2 的 RepoSearch 管线，语法与终端搜索框一致：
+     * {@code |} 分割 OR、段内空白分割 AND、{@code @}=模组、{@code $}=提示、
+     * {@code #}=tag、{@code *}=物品 ID、无前缀=显示名 contains。
+     * JEC 拼音模组在类加载期改写 AE2 NameSearchPredicate / TooltipsSearchPredicate
+     * 方法体内的 {@code String.contains}——改写与调用方无关，故本界面无需进入 JEC
+     * 白名单即获得拼音/声母/模糊音匹配；未装 JEC 时自动退化为普通子串匹配。
      */
     private boolean matchesSearch(PanelSnapshotPayload.Row row, String q) {
         if (q.isEmpty()) {
             return true;
         }
 
+        // 「#盘号」必须在转发 AE2 之前拦截：AE2 搜索语法里 # 是 tag 前缀（TagSearchPredicate），
+        // 直接转发会把 #3 当成「搜 tag 3」，永远搜不到盘号
         if (q.startsWith("#")) {
             try {
                 return Integer.parseInt(q.substring(1).trim()) == rowSeq.getOrDefault(row.id(), -1);
@@ -332,30 +401,68 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
             }
         }
 
-        if (matchItem(row.filterId(), q) || matchItem(row.storedId(), q)) {
-            return true;
-        }
+        // 幂等：RepoSearch 对相同串不重解析；搜索词变化时自动重新解析并清匹配缓存。
+        // 空串已在上方提前返回（全量分支），这里的 q 至少一个字符。
+        search.setSearchString(q);
 
-        for (var step : row.chain()) {
-            if (matchItem(step, q)) {
+        // 匹配面与旧版 matchItem 一致：标记 + 存量 + 压缩链各档，去重后逐个转成 AE2 entry；
+        // RepoSearch.matches 按 entry.getSerial() 缓存结果（铁律：不同 AEKey 绝不能共用 serial，见 entryOf）
+        var ids = new LinkedHashSet<String>(2 + row.chain().size());
+        ids.add(row.filterId());
+        ids.add(row.storedId());
+        ids.addAll(row.chain());
+
+        for (var id : ids) {
+            var entry = entryOf(id);
+
+            if (entry != null && search.matches(entry)) {
                 return true;
             }
         }
 
+        // 严格语言模式：不再对注册 ID 做隐含的本地 contains（注册 ID 恒为英文，
+        // 隐含匹配会让任何语言下的英文词都命中，与显示名的语言跟随语义冲突）。
+        // 需要按注册 ID 搜索时使用 AE2 语法的 * 前缀（如 *iron），与 AE2 终端行为完全一致。
         return false;
     }
 
-    private boolean matchItem(String id, String q) {
-        if (id == null || id.isEmpty()) {
-            return false;
+    /**
+     * 把物品注册 ID 解析成可复用的 AE2 {@link GridInventoryEntry}，供 RepoSearch.matches 消费；
+     * 无法解析（id 空 / 查不到物品 / 空堆）返回 null。
+     *
+     * <p>铁律一（serial 唯一）：RepoSearch.matches 按 entry.getSerial() 缓存匹配结果，
+     * 不同 AEKey 绝不能共用 serial——这里用 {@link #nextSerial} 单调分配，并按 key 缓存
+     * entry 实例，保证同一物品永远持有同一个 serial（跨行、跨快照均稳定）。
+     * 铁律二（what 非 null）：AE2 谓词内部 requireNonNull(entry.getWhat())，空堆会被
+     * {@code AEItemKey.of} 返回 null 拦下，不会构造出 what 为 null 的 entry。
+     */
+    @Nullable
+    private GridInventoryEntry entryOf(String itemId) {
+        if (itemId == null || itemId.isEmpty()) {
+            return null;
         }
 
-        if (id.toLowerCase().contains(q)) {
-            return true;
+        var stack = itemById(itemId);
+
+        if (stack.isEmpty()) {
+            return null;
         }
 
-        var stack = itemById(id);
-        return !stack.isEmpty() && stack.getHoverName().getString().toLowerCase().contains(q);
+        var key = AEItemKey.of(stack);
+
+        if (key == null) {
+            return null;
+        }
+
+        var cached = entries.get(key);
+
+        if (cached != null) {
+            return cached;
+        }
+
+        var entry = new GridInventoryEntry(nextSerial++, key, 1, 0, false);
+        entries.put(key, entry);
+        return entry;
     }
 
     /**
@@ -374,7 +481,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
      * 那里只提供宽高数值，不再让 AE2 去画它的 background.png）。
      */
     @Override
-    public void drawBG(GuiGraphics guiGraphics, int offsetX, int offsetY, int mouseX, int mouseY,
+    public void drawBG(GuiGraphicsExtractor guiGraphics, int offsetX, int offsetY, int mouseX, int mouseY,
             float partialTicks) {
         var generated = style.getGeneratedBackground();
 
@@ -385,7 +492,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
         drawNinePatch(guiGraphics, offsetX, offsetY, generated.getWidth(), generated.getHeight());
     }
 
-    private void drawNinePatch(GuiGraphics guiGraphics, int x, int y, int width, int height) {
+    private void drawNinePatch(GuiGraphicsExtractor guiGraphics, int x, int y, int width, int height) {
         if (width < 2 * BG_BORDER || height < 2 * BG_BORDER) {
             return;
         }
@@ -428,7 +535,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
         }
     }
 
-    private static void blitBg(GuiGraphics guiGraphics, int srcX, int srcY, int srcW, int srcH, int destX, int destY) {
+    private static void blitBg(GuiGraphicsExtractor guiGraphics, int srcX, int srcY, int srcW, int srcH, int destX, int destY) {
         Blitter.texture(DIALOG_BG, BG_SIZE, BG_SIZE)
                 .src(srcX, srcY, srcW, srcH)
                 .dest(destX, destY)
@@ -464,7 +571,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
                 b -> {
                     // Shift+点击 = 自动转移：超过 20000 的物品转入大宗盘（未标记的空闲盘先自动标记）；
                     // 悬停提示由 TransferButton 在按住 Shift 时给出
-                    if (Screen.hasShiftDown()) {
+                    if (Minecraft.getInstance().hasShiftDown()) {
                         menu.panelTransferAuto();
                     } else {
                         menu.panelTransfer(currentThreshold());
@@ -565,12 +672,17 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
      *
      * <p>前景层运行在 renderLabels 的平移坐标系里，坐标<b>相对面板左上角</b>；
      * 这里不得再叠加 leftPos/topPos，否则内容整体偏移出面板（控件走绝对坐标、前景层走相对坐标）。
+     *
+     * <p><b>颜色必须是 ARGB（高位带 alpha）</b>：MC 26.1 的 GuiGraphicsExtractor.text 以
+     * {@code ARGB.alpha(color) != 0} 为入队门卫，裸 RGB（如 0x404040）会被整体丢弃——
+     * 文字直接不可见（1.21.1 的 Font.adjustColor 自动补 0xFF 的行为在 26.1 已移除）。
+     * withStyle(ChatFormatting.X) 的组件样式走另一条渲染路径，不受此门卫影响。
      */
-    private void drawForegroundContent(GuiGraphics guiGraphics) {
+    private void drawForegroundContent(GuiGraphicsExtractor guiGraphics) {
         // 保留阈值标签（输入框上方）
-        guiGraphics.drawString(font,
+        guiGraphics.text(font,
                 Component.translatable("gui.bulkterminal.threshold"),
-                148, 13, 0x404040, false);
+                148, 13, 0xFF404040, false);
 
         // 盘行（滚动窗口：屏幕第 i 行 = view 第 first + i 项，序号仍显示原始盘号）
         var rows = data.rows();
@@ -583,25 +695,25 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
 
         // 搜索无结果时给一行提示，面板不至于变成白板
         if (visible == 0 && !rows.isEmpty() && !searchFilter.isEmpty()) {
-            guiGraphics.drawString(font,
+            guiGraphics.text(font,
                     Component.translatable("gui.bulkterminal.search_none"),
-                    8, ROWS_TOP + 4, 0x8a8a8a, false);
+                    8, ROWS_TOP + 4, 0xFF8A8A8A, false);
         }
     }
 
-    private void drawRow(GuiGraphics guiGraphics, PanelSnapshotPayload.Row row, int y) {
+    private void drawRow(GuiGraphicsExtractor guiGraphics, PanelSnapshotPayload.Row row, int y) {
         // 行首：稳定盘号（会话内不变，#N 搜索同号） + 宿主 + 优先级
-        guiGraphics.drawString(font,
+        guiGraphics.text(font,
                 Component.literal("#" + rowSeq.getOrDefault(row.id(), 0) + " ")
                         .append(Component.literal(row.host() + " · P" + row.priority())
                                 .withStyle(ChatFormatting.GRAY)),
-                8, y, 0x404040, false);
+                8, y, 0xFF404040, false);
 
         // 标记 / 存量
         if (row.canFit()) {
-            guiGraphics.drawString(font,
+            guiGraphics.text(font,
                     Component.translatable("gui.bulkterminal.idle").withStyle(ChatFormatting.DARK_GRAY),
-                    26, y + 13, 0x555555, false);
+                    26, y + 13, 0xFF555555, false);
         } else {
             var filterStack = itemById(row.filterId());
             var storedStack = itemById(row.storedId());
@@ -610,12 +722,12 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
             int iconX = 26;
 
             if (!filterStack.isEmpty()) {
-                guiGraphics.renderItem(filterStack, iconX, y + 9);
+                guiGraphics.item(filterStack, iconX, y + 9);
                 iconX += 18;
             }
 
             if (!storedStack.isEmpty() && !storedStack.getItem().equals(filterStack.getItem())) {
-                guiGraphics.renderItem(storedStack, iconX, y + 9);
+                guiGraphics.item(storedStack, iconX, y + 9);
                 iconX += 18;
             }
 
@@ -629,7 +741,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
                                 .withStyle(ChatFormatting.DARK_GREEN));
             }
 
-            guiGraphics.drawString(font, line, iconX + 1, y + 13, 0x404040, false);
+            guiGraphics.text(font, line, iconX + 1, y + 13, 0xFF404040, false);
         }
 
         // 档位图标（按钮之间的展示位）
@@ -637,15 +749,15 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
             var step = itemById(row.chain().get(Math.min(row.cutoff(), row.chain().size() - 1)));
 
             if (!step.isEmpty()) {
-                guiGraphics.renderItem(step, 138, y + 9);
+                guiGraphics.item(step, 138, y + 9);
             }
         }
 
         // 第三行仅异常盘显示警告（正常盘不再画「终端显示」行——用户要求去除）
         if (row.mismatch()) {
-            guiGraphics.drawString(font,
+            guiGraphics.text(font,
                     Component.translatable("gui.bulkterminal.mismatch").withStyle(ChatFormatting.DARK_RED),
-                    8, y + 25, 0xa03030, false);
+                    8, y + 25, 0xFFA03030, false);
         }
     }
 
@@ -655,7 +767,7 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
         }
 
         try {
-            return BuiltInRegistries.ITEM.getOptional(ResourceLocation.parse(id))
+            return BuiltInRegistries.ITEM.getOptional(Identifier.parse(id))
                     .map(ItemStack::new)
                     .orElse(ItemStack.EMPTY);
         } catch (Exception e) {

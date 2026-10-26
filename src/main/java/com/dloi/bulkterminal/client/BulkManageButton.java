@@ -1,6 +1,6 @@
 package com.dloi.bulkterminal.client;
 
-import appeng.client.gui.Icon;
+import appeng.util.Icon;
 import appeng.client.gui.widgets.IconButton;
 import net.minecraft.network.chat.Component;
 

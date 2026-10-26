@@ -1,6 +1,6 @@
 package com.dloi.bulkterminal.client;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.Rect2i;
 
 import appeng.client.Point;
@@ -16,7 +16,7 @@ import appeng.client.gui.ICompositeWidget;
  */
 class BTScreenForeground implements ICompositeWidget {
     interface Drawer {
-        void draw(GuiGraphics guiGraphics);
+        void draw(GuiGraphicsExtractor guiGraphics);
     }
 
     private final Drawer drawer;
@@ -47,7 +47,7 @@ class BTScreenForeground implements ICompositeWidget {
     }
 
     @Override
-    public void drawForegroundLayer(GuiGraphics guiGraphics, Rect2i bounds, Point mouse) {
+    public void drawForegroundLayer(GuiGraphicsExtractor guiGraphics, Rect2i bounds, Point mouse) {
         drawer.draw(guiGraphics);
     }
 }

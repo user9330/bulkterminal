@@ -1,14 +1,13 @@
 package com.dloi.bulkterminal.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-
 import appeng.client.gui.widgets.AE2Button;
 import appeng.core.AppEng;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * 纯展示的数值牌：外观与 AE2 原生按钮（AE2Button 用的 ae2:button 贴图）同款，
@@ -16,7 +15,7 @@ import net.minecraft.resources.ResourceLocation;
  */
 class BTStatBadge extends Button {
     /** 与 AE2Button.SPRITES 同源：AppEng.makeId("button") = ae2:button（写错 ID 会渲染成缺贴图洋红块） */
-    private static final ResourceLocation SPRITE = AppEng.makeId("button");
+    private static final Identifier SPRITE = AppEng.makeId("button");
 
     BTStatBadge(Component message, int x, int y, int width) {
         super(x, y, width, 16, message, b -> {
@@ -24,9 +23,8 @@ class BTStatBadge extends Button {
     }
 
     @Override
-    protected void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        RenderSystem.enableBlend();
-        guiGraphics.blitSprite(SPRITE, getX(), getY(), width, height);
+    protected void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+        guiGraphics.blitSprite(RenderPipelines.GUI_TEXTURED, SPRITE, getX(), getY(), width, height);
 
         // 文字经 AE2Button 自己的渲染路径，与界面上其他按钮完全一致：
         // fork 的 AE2Button 正常态 = 0xF2F2F2 白字、无阴影（禁用 0x413F54 / 悬停 0x517497），
