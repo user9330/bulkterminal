@@ -5,7 +5,7 @@ plugins {
 }
 
 val modId = "bulkterminal"
-val modVersion = "0.1.0"
+val modVersion = "0.1.1-beta"
 
 base.archivesName = modId
 version = modVersion

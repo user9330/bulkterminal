@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -19,12 +20,16 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
+import appeng.api.stacks.AEItemKey;
+import appeng.api.stacks.AEKey;
 import appeng.client.gui.AESubScreen;
+import appeng.client.gui.me.search.RepoSearch;
 import appeng.client.gui.style.Blitter;
 import appeng.client.gui.widgets.AE2Button;
 import appeng.client.gui.widgets.AETextField;
 import appeng.client.gui.widgets.Scrollbar;
 import appeng.menu.SlotSemantics;
+import appeng.menu.me.common.GridInventoryEntry;
 
 import com.dloi.bulkterminal.menu.BulkTerminalMenu;
 import com.dloi.bulkterminal.net.PanelClientState;
@@ -81,6 +86,26 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
     private Map<Integer, Integer> idToRow = Map.of();
     /** 行 id → 稳定盘号（1 起；行首「#N」与 #N 搜索都用它，会话内不变） */
     private Map<Integer, Integer> rowSeq = Map.of();
+
+    /**
+     * 搜索复用 AE2 的 RepoSearch 管线（与终端搜索框同一套语法与谓词）。
+     * JEC 拼音模组在类加载期改写 AE2 NameSearchPredicate / TooltipsSearchPredicate
+     * 方法体内的 {@code String.contains}——改写发生在 AE2 自己的类上、与调用方无关，
+     * 因此本界面无需进入 JEC 白名单即可获得拼音/声母/模糊音匹配；
+     * 未装 JEC 时这些谓词自动退化为普通子串匹配。
+     */
+    private final RepoSearch search = new RepoSearch();
+
+    /**
+     * AEKey → 复用的 {@link GridInventoryEntry} 实例（供 RepoSearch.matches 消费）。
+     * 铁律一：不同 AEKey 绝不能共用 serial——RepoSearch.matches 按 entry.getSerial()
+     * 缓存匹配结果，共用 serial 会把 A 物品的结果串给 B；同一 key 恒定复用同一
+     * entry 实例（即恒定同一 serial），缓存才始终有效。
+     */
+    private final Map<AEKey, GridInventoryEntry> entries = new HashMap<>();
+
+    /** 单调递增的 serial 分配器：每个新 AEKey 分得一个会话内唯一的 serial（铁律一的实现） */
+    private long nextSerial = 1;
 
     public BulkCellManageScreen(BulkTerminalScreen parent) {
         super(parent, STYLE);
@@ -150,7 +175,26 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
 
             reindex();
             refreshView();
+
+            // 焦点态必须在 rebuild 前读取（rebuild 会清 flag）：只恢复「原本就在输入」的那个框。
+            // 若无条件恢复，点击按钮等操作触发的快照会把焦点从按钮抢到搜索框，
+            // 搜索框凭空获得光标（闪烁）——真机上表现为文字闪烁。
+            var searchHadFocus = searchField.isFocused();
+            var thresholdHadFocus = thresholdBox.isFocused();
+
             rebuildWidgets();
+
+            // AE2 populateScreen 每次 init 都强制 setFocused(false)，快照驱动的 rebuildWidgets
+            // 会把正在输入的框焦点掐断。setInitialFocus 同时恢复 Screen 级焦点（键盘事件
+            // 派发可达）与控件焦点；仅当该框 rebuild 前就持有焦点时才恢复，
+            // 焦点在别处（如刚点过的按钮）时不抢，顺带补上阈值框。
+            if (searchHadFocus && !searchField.isFocused()) {
+                this.setInitialFocus(searchField);
+            }
+
+            if (thresholdHadFocus && !thresholdBox.isFocused()) {
+                this.setInitialFocus(thresholdBox);
+            }
         }
 
         // 滚动条被拖拽/滚轮后（captureMouseWheel=true，全屏滚轮都归它），同步重建行按钮
@@ -318,12 +362,21 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
     /**
      * 搜索命中规则：压缩链上任意一档、标记/存量物品的名字或注册 ID，
      * 另支持「#盘号」按稳定盘号直查（如 #3 → 盘号 3 的盘；盘号会话内不变）。
+     *
+     * <p>名字匹配复用 AE2 的 RepoSearch 管线，语法与终端搜索框一致：
+     * {@code |} 分割 OR、段内空白分割 AND、{@code @}=模组、{@code $}=提示、
+     * {@code #}=tag、{@code *}=物品 ID、无前缀=显示名 contains。
+     * JEC 拼音模组在类加载期改写 AE2 NameSearchPredicate / TooltipsSearchPredicate
+     * 方法体内的 {@code String.contains}——改写与调用方无关，故本界面无需进入 JEC
+     * 白名单即获得拼音/声母/模糊音匹配；未装 JEC 时自动退化为普通子串匹配。
      */
     private boolean matchesSearch(PanelSnapshotPayload.Row row, String q) {
         if (q.isEmpty()) {
             return true;
         }
 
+        // 「#盘号」必须在转发 AE2 之前拦截：AE2 搜索语法里 # 是 tag 前缀（TagSearchPredicate），
+        // 直接转发会把 #3 当成「搜 tag 3」，永远搜不到盘号
         if (q.startsWith("#")) {
             try {
                 return Integer.parseInt(q.substring(1).trim()) == rowSeq.getOrDefault(row.id(), -1);
@@ -332,30 +385,68 @@ public class BulkCellManageScreen extends AESubScreen<BulkTerminalMenu, BulkTerm
             }
         }
 
-        if (matchItem(row.filterId(), q) || matchItem(row.storedId(), q)) {
-            return true;
-        }
+        // 幂等：RepoSearch 对相同串不重解析；搜索词变化时自动重新解析并清匹配缓存。
+        // 空串已在上方提前返回（全量分支），这里的 q 至少一个字符。
+        search.setSearchString(q);
 
-        for (var step : row.chain()) {
-            if (matchItem(step, q)) {
+        // 匹配面与旧版 matchItem 一致：标记 + 存量 + 压缩链各档，去重后逐个转成 AE2 entry；
+        // RepoSearch.matches 按 entry.getSerial() 缓存结果（铁律：不同 AEKey 绝不能共用 serial，见 entryOf）
+        var ids = new LinkedHashSet<String>(2 + row.chain().size());
+        ids.add(row.filterId());
+        ids.add(row.storedId());
+        ids.addAll(row.chain());
+
+        for (var id : ids) {
+            var entry = entryOf(id);
+
+            if (entry != null && search.matches(entry)) {
                 return true;
             }
         }
 
+        // 严格语言模式：不再对注册 ID 做隐含的本地 contains（注册 ID 恒为英文，
+        // 隐含匹配会让任何语言下的英文词都命中，与显示名的语言跟随语义冲突）。
+        // 需要按注册 ID 搜索时使用 AE2 语法的 * 前缀（如 *iron），与 AE2 终端行为完全一致。
         return false;
     }
 
-    private boolean matchItem(String id, String q) {
-        if (id == null || id.isEmpty()) {
-            return false;
+    /**
+     * 把物品注册 ID 解析成可复用的 AE2 {@link GridInventoryEntry}，供 RepoSearch.matches 消费；
+     * 无法解析（id 空 / 查不到物品 / 空堆）返回 null。
+     *
+     * <p>铁律一（serial 唯一）：RepoSearch.matches 按 entry.getSerial() 缓存匹配结果，
+     * 不同 AEKey 绝不能共用 serial——这里用 {@link #nextSerial} 单调分配，并按 key 缓存
+     * entry 实例，保证同一物品永远持有同一个 serial（跨行、跨快照均稳定）。
+     * 铁律二（what 非 null）：AE2 谓词内部 requireNonNull(entry.getWhat())，空堆会被
+     * {@code AEItemKey.of} 返回 null 拦下，不会构造出 what 为 null 的 entry。
+     */
+    @Nullable
+    private GridInventoryEntry entryOf(String itemId) {
+        if (itemId == null || itemId.isEmpty()) {
+            return null;
         }
 
-        if (id.toLowerCase().contains(q)) {
-            return true;
+        var stack = itemById(itemId);
+
+        if (stack.isEmpty()) {
+            return null;
         }
 
-        var stack = itemById(id);
-        return !stack.isEmpty() && stack.getHoverName().getString().toLowerCase().contains(q);
+        var key = AEItemKey.of(stack);
+
+        if (key == null) {
+            return null;
+        }
+
+        var cached = entries.get(key);
+
+        if (cached != null) {
+            return cached;
+        }
+
+        var entry = new GridInventoryEntry(nextSerial++, key, 1, 0, false);
+        entries.put(key, entry);
+        return entry;
     }
 
     /**
